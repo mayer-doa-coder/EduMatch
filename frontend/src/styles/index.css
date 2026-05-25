@@ -1,0 +1,37 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+:root {
+  --edu-primary: #1a5f7a;
+  --edu-secondary: #57c5b6;
+  --edu-accent: #ff9f29;
+  --edu-bg: #f8f9fa;
+  --edu-success: #28a745;
+  --edu-danger: #dc3545;
+  --edu-warning: #ffc107;
+  --edu-info: #17a2b8;
+  --edu-dark: #212529;
+  --edu-light: #6c757d;
+  --edu-border: #e9ecef;
+  --radius: 16px;
+}
+
+.edu-card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
+.edu-bg-primary { background-color: var(--edu-primary); }
+.edu-bg-secondary { background-color: var(--edu-secondary); }
+.edu-bg-accent { background-color: var(--edu-accent); }
+.edu-text-primary { color: var(--edu-primary); }
+.edu-text-secondary { color: var(--edu-secondary); }
+.edu-text-accent { color: var(--edu-accent); }
+.edu-gradient { background: linear-gradient(135deg, #1a5f7a 0%, #57c5b6 100%); }
+.edu-gradient-soft { background: linear-gradient(135deg, rgba(26,95,122,0.06) 0%, rgba(87,197,182,0.10) 100%); }
+
+.hover-lift { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.hover-lift:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.6s ease both; }
