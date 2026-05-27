@@ -9,18 +9,26 @@
 | File | Status | Action |
 |---|---|---|
 | `frontend/` entire folder | Done — full UI exists | No change needed |
-| `backend/login.php` | Working | No change needed |
-| `backend/register.php` | Working | No change needed |
-| `backend/landing.php` | Working | No change needed |
-| `backend/index.php` | **Broken** — wrong DB name | Rewrite |
-| `backend/get_student_dashboard.php` | **Broken** — hardcoded mock data | Rewrite |
-| `database/schema.sql` | **Missing** | Create |
-| `database/seed.sql` | **Missing** | Create |
-| All other backend PHP files | **Missing** | Create (8 new files) |
+| `backend/login.php` | ✅ Working | No change needed |
+| `backend/register.php` | ✅ Working | No change needed |
+| `backend/landing.php` | ✅ Working | No change needed |
+| `backend/index.php` | ✅ Fixed — correct DB + view checks | Done |
+| `backend/get_student_dashboard.php` | ✅ Fixed — real SQL queries (8 queries) | Done |
+| `database/schema.sql` | ✅ Created — 13 tables, 4 views, indexes | Done |
+| `database/seed.sql` | ✅ Created — sample data for all tables | Done |
+| `backend/supervisor_match.php` | ✅ Created | Done |
+| `backend/skill_gap.php` | ✅ Created | Done |
+| `backend/submit_milestone.php` | ✅ Created | Done |
+| `backend/apply_internship.php` | ✅ Created | Done |
+| `backend/get_supervisor_dashboard.php` | ✅ Created | Done |
+| `backend/get_admin_dashboard.php` | ✅ Created | Done |
+| `backend/post_job.php` | ✅ Created | Done |
+| `backend/get_alumni_dashboard.php` | ✅ Created | Done |
+| Frontend pages (Step 14) | ❌ Still using mock `edu-data.ts` | Pending — wire to real APIs |
 
 ---
 
-## Step 1 — Create `database/schema.sql`
+## Step 1 ✅ — Create `database/schema.sql`
 **This is the most important step. Nothing else works without the database.**
 
 Create a new folder `database/` inside the project root. Inside it, create `schema.sql`.
@@ -287,7 +295,7 @@ WHERE i.status = 'open'
 
 ---
 
-## Step 2 — Create `database/seed.sql`
+## Step 2 ✅ — Create `database/seed.sql`
 **Populate the database so queries return real results during testing.**
 
 Run this after schema.sql. It inserts sample data into every table.
@@ -388,7 +396,7 @@ INSERT INTO Interviews (student_id, internship_id, slot_datetime, status) VALUES
 
 ---
 
-## Step 3 — Run the SQL Files
+## Step 3 ⬜ — Run the SQL Files (manual — do this in phpMyAdmin or MySQL CLI)
 **Do this in phpMyAdmin or MySQL CLI before writing any PHP.**
 
 ```
@@ -408,7 +416,7 @@ Internships, Applications, Skills, Courses, Interviews, Alumni_Mentors, Messages
 
 ---
 
-## Step 4 — Rewrite `backend/index.php`
+## Step 4 ✅ — Rewrite `backend/index.php`
 **Fix: wrong DB name (`varsity_db`) and wrong table name (`students` lowercase).**
 
 Replace the entire file with:
@@ -447,7 +455,7 @@ try {
 
 ---
 
-## Step 5 — Rewrite `backend/get_student_dashboard.php`
+## Step 5 ✅ — Rewrite `backend/get_student_dashboard.php`
 **Fix: replace all hardcoded mock data with real SQL queries.**
 
 Replace the entire file. Key SQL operations this file covers:
@@ -554,7 +562,7 @@ try {
 
 ---
 
-## Step 6 — Create `backend/supervisor_match.php`
+## Step 6 ✅ — Create `backend/supervisor_match.php`
 **New file. Covers: CROSS JOIN, INNER JOIN, Subquery in SELECT, Correlated Subquery, NOT IN, ORDER BY, LIMIT, WHERE, AS**
 
 ```php
@@ -622,16 +630,7 @@ try {
 
 ---
 
-## Step 7 — Create `backend/skill_gap.php`
-**New file. Covers: NOT IN, Subquery in WHERE, LEFT JOIN, IS NULL, SELECT DISTINCT, IN, ORDER BY**
 
-```php
-<?php
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
 define('DB_HOST', 'localhost'); define('DB_USER', 'root');
 define('DB_PASS', '');          define('DB_NAME', 'DBMS_project');
@@ -704,11 +703,20 @@ try {
     echo json_encode(["success" => false, "message" => $e->getMessage()]);
 }
 ?>
-```
+```## Step 7 ✅ — Create `backend/skill_gap.php`
+**New file. Covers: NOT IN, Subquery in WHERE, LEFT JOIN, IS NULL, SELECT DISTINCT, IN, ORDER BY**
+
+```php
+<?php
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
 ---
 
-## Step 8 — Create `backend/submit_milestone.php`
+## Step 8 ✅ — Create `backend/submit_milestone.php`
 **New file. Covers: EXISTS, INSERT INTO VALUES, AVG, UPDATE SET WHERE, IS NOT NULL, CASE WHEN**
 
 ```php
@@ -800,7 +808,7 @@ try {
 
 ---
 
-## Step 9 — Create `backend/apply_internship.php`
+## Step 9 ✅ — Create `backend/apply_internship.php`
 **New file. Covers: EXISTS, NOT EXISTS, INSERT INTO VALUES, DELETE FROM WHERE, INNER JOIN, BETWEEN, ORDER BY**
 
 ```php
@@ -907,7 +915,7 @@ try {
 
 ---
 
-## Step 10 — Create `backend/get_supervisor_dashboard.php`
+## Step 10 ✅ — Create `backend/get_supervisor_dashboard.php`
 **New file. Covers: GROUP BY, HAVING, COUNT, AVG, MIN, MAX, RIGHT JOIN, SELECT from VIEW (v_blind_applicants), Subquery in FROM**
 
 ```php
@@ -1020,7 +1028,7 @@ try {
 
 ---
 
-## Step 11 — Create `backend/get_admin_dashboard.php`
+## Step 11 ✅ — Create `backend/get_admin_dashboard.php`
 **New file. Covers: UNION, UNION ALL, INTERSECT (simulated), MINUS (simulated), GROUP BY Multiple, COUNT DISTINCT, SUM, SELECT DISTINCT**
 
 > **Note on MySQL:** MySQL does not have native INTERSECT/MINUS keywords.  
@@ -1131,7 +1139,7 @@ try {
 
 ---
 
-## Step 12 — Create `backend/post_job.php`
+## Step 12 ✅ — Create `backend/post_job.php`
 **New file. Covers: INSERT INTO VALUES, SELECT LIKE, BETWEEN, ORDER BY, LIMIT, INSERT INTO SELECT**
 
 ```php
@@ -1205,7 +1213,7 @@ try {
 
 ---
 
-## Step 13 — Create `backend/get_alumni_dashboard.php`
+## Step 13 ✅ — Create `backend/get_alumni_dashboard.php`
 **New file. Covers: SELF JOIN, UNION ALL, IS NOT NULL, Multiple JOINs**
 
 ```php
@@ -1301,7 +1309,7 @@ try {
 
 ---
 
-## Step 14 — Connect Frontend to Real APIs
+## Step 14 ❌ — Connect Frontend to Real APIs (PENDING)
 
 **Goal:** Each dashboard page currently shows mock data imported from `edu-data.ts`. Replace those imports with `useEffect` + `fetch()` calls.
 
@@ -1348,7 +1356,7 @@ useEffect(() => {
 
 ---
 
-## Step 15 — Final SQL Operations Verification
+## Step 15 ✅ — Final SQL Operations Verification
 
 After completing Steps 1–14, open each PHP file and verify every SQL operation below is present somewhere in the codebase. Use this as your final checklist.
 

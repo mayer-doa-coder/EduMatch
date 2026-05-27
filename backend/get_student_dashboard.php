@@ -1,208 +1,246 @@
 <?php
-/**
- * Core Institutional Data Agreggation Gateway Engine
- * Endpoint: http://localhost/dbms/backend/get_student_dashboard.php
- */
+// ============================================================
+// EduMatch — Student Dashboard Data Endpoint
+// GET /backend/get_student_dashboard.php?student_id=1
+// SQL operations: SELECT, INNER JOIN, LEFT JOIN, Multiple JOINs,
+//   WHERE, ORDER BY, IS NULL, IS NOT NULL, UNION ALL,
+//   Subquery in WHERE, COUNT, AS, VIEW queries
+// ============================================================
 
-// Establish programmatic baseline CORS security mapping parameters
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
-// Gracefully handle preflight OPTIONS checks generated natively by standard web browser fetch clients
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
 
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'DBMS_project');
+
+$student_id = isset($_GET['student_id']) ? (int)$_GET['student_id'] : 0;
+if (!$student_id) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "student_id is required."]);
+    exit();
+}
+
 try {
-    /* 
-    ==========================================================================
-    DATABASE CONNECTION INITIALIZATION PROTOTYPE
-    Uncomment and adapt this layer when swapping mock payloads with SQL queries
-    ==========================================================================
-    $host = "localhost";
-    $db_name = "edumatch_db";
-    $username = "root";
-    $password = "";
-    
-    $conn = new PDO("mysql:host=" . $host . ";dbname=" . $db_name, $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    */
-
-    // 1. Current Authenticated Student Object Telemetry Profile
-    $student = [
-        "name" => "Limu Akter",
-        "department" => "Computer Science & Engineering",
-        "university" => "Dhaka University",
-        "email" => "limu.akter@dhaka.edu",
-        "cgpa" => 3.89,
-        "thesisHealth" => 87,
-        "matchingScore" => 94,
-        "skills" => ["Python", "Statistics", "SQL", "Linear Algebra"],
-        "interests" => ["Machine Learning", "Neural Networks", "Natural Language Processing"]
-    ];
-
-    // 2. AI Rank-Indexed Academic Supervisors Dataset
-    $supervisors = [
+    $pdo = new PDO(
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+        DB_USER,
+        DB_PASS,
         [
-            "id" => 1,
-            "name" => "Dr. Ahmed Rahman",
-            "expertise" => "Computer Vision & Deep Learning Models",
-            "photo" => "AR",
-            "match" => 96,
-            "quota" => 5,
-            "current" => 3
-        ],
-        [
-            "id" => 2,
-            "name" => "Prof. Dr. M. Khan",
-            "expertise" => "Natural Language Processing & Transformers",
-            "photo" => "MK",
-            "match" => 88,
-            "quota" => 4,
-            "current" => 4
-        ],
-        [
-            "id" => 3,
-            "name" => "Dr. Sabina Yasmin",
-            "expertise" => "Statistical Learning & Data Engineering",
-            "photo" => "SY",
-            "match" => 78,
-            "quota" => 6,
-            "current" => 2
-        ],
-        [
-            "id" => 4,
-            "name" => "Dr. Tanvir Hossain",
-            "expertise" => "Reinforcement Learning & Edge Robotics",
-            "photo" => "TH",
-            "match" => 64,
-            "quota" => 3,
-            "current" => 1
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
         ]
+    );
+
+    // ── Query 1: Student profile — INNER JOIN + Multiple JOINs ──────────
+    $q1 = $pdo->prepare("
+        SELECT s.student_id, s.cgpa, s.research_interest, s.technical_skills,
+               u.name, u.email,
+               uni.uni_name AS university
+        FROM   Students s
+        INNER JOIN Users        u   ON s.user_id       = u.user_id
+        INNER JOIN Universities uni ON u.university_id = uni.university_id
+        WHERE  s.student_id = :sid
+    ");
+    $q1->execute([':sid' => $student_id]);
+    $student = $q1->fetch();
+
+    if (!$student) {
+        http_response_code(404);
+        echo json_encode(["success" => false, "message" => "Student not found."]);
+        exit();
+    }
+    $student['cgpa'] = (float)$student['cgpa'];
+
+    // ── Query 2: Thesis projects + milestones — LEFT JOIN + ORDER BY ─────
+    // Supervisor resolved via INNER JOIN; milestones LEFT JOIN to include
+    // projects that have no milestones yet.
+    $q2 = $pdo->prepare("
+        SELECT p.project_id,  p.title,         p.status,  p.health_score,
+               fu.name        AS supervisor_name,
+               m.milestone_id,
+               m.name         AS milestone_name,
+               m.due_date,    m.submission_date, m.plagiarism_score
+        FROM   Projects_Thesis p
+        INNER JOIN Faculty f   ON p.supervisor_id = f.faculty_id
+        INNER JOIN Users   fu  ON f.user_id        = fu.user_id
+        LEFT  JOIN Milestones m ON p.project_id   = m.project_id
+        WHERE  p.student_id = :sid
+        ORDER  BY p.project_id ASC, m.due_date ASC
+    ");
+    $q2->execute([':sid' => $student_id]);
+    $thesis_rows = $q2->fetchAll();
+
+    // Group milestones under their parent project
+    $projects_map = [];
+    foreach ($thesis_rows as $row) {
+        $pid = (int)$row['project_id'];
+        if (!isset($projects_map[$pid])) {
+            $projects_map[$pid] = [
+                'project_id'      => $pid,
+                'title'           => $row['title'],
+                'status'          => $row['status'],
+                'health_score'    => (int)$row['health_score'],
+                'supervisor_name' => $row['supervisor_name'],
+                'milestones'      => [],
+            ];
+        }
+        if ($row['milestone_id'] !== null) {
+            $projects_map[$pid]['milestones'][] = [
+                'milestone_id'    => (int)$row['milestone_id'],
+                'name'            => $row['milestone_name'],
+                'due_date'        => $row['due_date'],
+                'submission_date' => $row['submission_date'],
+                'plagiarism_score'=> (float)$row['plagiarism_score'],
+                // IS NULL + date comparison flag
+                'overdue'         => (
+                    $row['submission_date'] === null &&
+                    $row['due_date'] !== null &&
+                    $row['due_date'] < date('Y-m-d')
+                ),
+            ];
+        }
+    }
+    $thesis = array_values($projects_map);
+
+    // ── Query 3: Notifications — UNION ALL + Subquery in WHERE ──────────
+    // :sid1 / :sid2 are the same value; named params must be unique when
+    // ATTR_EMULATE_PREPARES is false.
+    $q3 = $pdo->prepare("
+        SELECT 'internship'   AS type,
+               CONCAT('Applied: ', i.company_name, ' — ', i.role_title) AS title,
+               a.applied_date AS time,
+               a.status       AS detail
+        FROM   Applications a
+        INNER  JOIN Internships i ON a.internship_id = i.internship_id
+        WHERE  a.student_id = :sid1
+        UNION  ALL
+        SELECT 'message' AS type,
+               body      AS title,
+               sent_at   AS time,
+               NULL      AS detail
+        FROM   Messages
+        WHERE  receiver_id = (
+            SELECT user_id FROM Students WHERE student_id = :sid2
+        )
+        ORDER  BY time DESC
+        LIMIT  5
+    ");
+    $q3->execute([':sid1' => $student_id, ':sid2' => $student_id]);
+    $notifications = $q3->fetchAll();
+
+    // ── Query 4: Milestone progress — COUNT + IS NOT NULL + IS NULL ──────
+    $q4 = $pdo->prepare("
+        SELECT
+            COUNT(*)                                               AS total_milestones,
+            COUNT(m.submission_date)                               AS done_count,
+            SUM(CASE WHEN m.submission_date IS NULL
+                      AND  m.due_date < CURDATE() THEN 1
+                 ELSE 0 END)                                       AS overdue_count
+        FROM   Milestones m
+        INNER  JOIN Projects_Thesis p ON m.project_id = p.project_id
+        WHERE  p.student_id = :sid
+    ");
+    $q4->execute([':sid' => $student_id]);
+    $raw = $q4->fetch();
+    $progress = [
+        'total_milestones' => (int)$raw['total_milestones'],
+        'done_count'       => (int)$raw['done_count'],
+        'overdue_count'    => (int)$raw['overdue_count'],
+        'completion_pct'   => $raw['total_milestones'] > 0
+            ? round(($raw['done_count'] / $raw['total_milestones']) * 100)
+            : 0,
     ];
 
-    // 3. Adaptive Open Curriculums Matrix Data
-    $courses = [
-        [
-            "id" => 101,
-            "name" => "Advanced PyTorch Pipeline Engineering",
-            "provider" => "MIT OpenCourseWare",
-            "duration" => "4 weeks",
-            "difficulty" => "Advanced"
-        ],
-        [
-            "id" => 102,
-            "name" => "Academic Research Writing for Engineers",
-            "provider" => "Stanford Online",
-            "duration" => "2 weeks",
-            "difficulty" => "Intermediate"
-        ],
-        [
-            "id" => 103,
-            "name" => "Applied Mathematical Statistics Optimization",
-            "provider" => "UC Berkeley",
-            "duration" => "6 weeks",
-            "difficulty" => "Advanced"
-        ]
-    ];
+    // ── Query 5: Student skills — LEFT JOIN + ORDER BY ───────────────────
+    $q5 = $pdo->prepare("
+        SELECT sk.skill_id,   sk.skill_name, sk.verified,
+               u.name AS verified_by_name
+        FROM   Skills sk
+        LEFT   JOIN Users u ON sk.verified_by = u.user_id
+        WHERE  sk.student_id = :sid
+        ORDER  BY sk.verified DESC, sk.skill_name ASC
+    ");
+    $q5->execute([':sid' => $student_id]);
+    $skills = $q5->fetchAll();
+    foreach ($skills as &$sk) {
+        $sk['skill_id'] = (int)$sk['skill_id'];
+        $sk['verified'] = (bool)$sk['verified'];
+    }
+    unset($sk);
 
-    // 4. Milestone Pipeline Checkpoints
-    $milestones = [
-        ["name" => "Thesis Proposal Approval", "date" => "Completed Feb 05", "status" => "done"],
-        ["name" => "Literature Review & Ch. 1 Submission", "date" => "Completed Mar 01", "status" => "done"],
-        ["name" => "Methodology Iteration Formulation", "date" => "In Evaluation Layer", "status" => "active"],
-        ["name" => "Final Presentation Defense Submission", "date" => "Target Deadline June 20", "status" => "pending"]
-    ];
+    // ── Query 6: Available supervisors — VIEW v_supervisor_load ─────────
+    // WHERE filters to only supervisors who still have capacity (slots_available > 0)
+    $q6 = $pdo->query("
+        SELECT faculty_id, supervisor_name, quota,
+               current_student_count, slots_available
+        FROM   v_supervisor_load
+        WHERE  slots_available > 0
+        ORDER  BY slots_available DESC
+    ");
+    $supervisors = $q6->fetchAll();
+    foreach ($supervisors as &$sv) {
+        $sv['faculty_id']            = (int)$sv['faculty_id'];
+        $sv['quota']                 = (int)$sv['quota'];
+        $sv['current_student_count'] = (int)$sv['current_student_count'];
+        $sv['slots_available']       = (int)$sv['slots_available'];
+    }
+    unset($sv);
 
-    // 5. System Messages & System Alerts Registry
-    $notifications = [
-        [
-            "id" => 501,
-            "title" => "New Internship Match Found",
-            "body" => "Data Scientist Trainee placement opening available at TigerIT Bangladesh.",
-            "time" => "10 mins ago",
-            "unread" => true
-        ],
-        [
-            "id" => 502,
-            "title" => "Review Complete: Chapter 2",
-            "body" => "Dr. Ahmed Rahman requested adjustment modifications to data sampling figures.",
-            "time" => "2 hours ago",
-            "unread" => true
-        ],
-        [
-            "id" => 503,
-            "title" => "System Core Update",
-            "body" => "Verifiable cryptographic certificate signing protocols are active.",
-            "time" => "1 day ago",
-            "unread" => false
-        ]
-    ];
+    // ── Query 7: Open internship matches — VIEW v_internship_matches ─────
+    $q7 = $pdo->query("
+        SELECT internship_id, company_name, role_title,
+               salary, required_skills, deadline, posting_university
+        FROM   v_internship_matches
+        ORDER  BY deadline ASC
+    ");
+    $internships = $q7->fetchAll();
+    foreach ($internships as &$ii) {
+        $ii['internship_id'] = (int)$ii['internship_id'];
+    }
+    unset($ii);
 
-    // 6. Chronological Weekly Performance Telemetry Arrays
-    $progressData = [
-        ["week" => "W1", "progress" => 10],
-        ["week" => "W2", "progress" => 25],
-        ["week" => "W3", "progress" => 40],
-        ["week" => "W4", "progress" => 55],
-        ["week" => "W5", "progress" => 68],
-        ["week" => "W6", "progress" => 77],
-        ["week" => "W7", "progress" => 87]
-    ];
+    // ── Query 8: Recommended courses — Subquery in WHERE ────────────────
+    // Matches courses whose skill_tag appears in this student's Skills table
+    $q8 = $pdo->prepare("
+        SELECT course_id, name, provider, duration, difficulty, skill_tag
+        FROM   Courses
+        WHERE  skill_tag IN (
+            SELECT skill_name FROM Skills WHERE student_id = :sid
+        )
+        ORDER  BY difficulty ASC, name ASC
+    ");
+    $q8->execute([':sid' => $student_id]);
+    $courses = $q8->fetchAll();
+    foreach ($courses as &$c) {
+        $c['course_id'] = (int)$c['course_id'];
+    }
+    unset($c);
 
-    // 7. Internship Enterprise Alignment Matrix Data
-    $internships = [
-        [
-            "id" => 901,
-            "role" => "Machine Learning Research Trainee",
-            "company" => "TigerIT Systems Ltd",
-            "match" => 95,
-            "salary" => "৳25,000 / month",
-            "skills" => ["Python", "PyTorch", "Computer Vision"]
-        ],
-        [
-            "id" => 902,
-            "role" => "Data Engineering Analyst",
-            "company" => "Pathao Technologies",
-            "match" => 89,
-            "salary" => "৳30,000 / month",
-            "skills" => ["SQL", "Python", "Data Governance"]
-        ],
-        [
-            "id" => 903,
-            "role" => "NLP Engine Specialist",
-            "company" => "Brain Station 23",
-            "match" => 84,
-            "salary" => "৳28,000 / month",
-            "skills" => ["Transformers", "Python", "Neural Networks"]
-        ]
-    ];
-
-    // Assemble all datasets cleanly into a single transmission payload
-    $outputPayload = [
-        "student" => $student,
-        "supervisors" => $supervisors,
-        "courses" => $courses,
-        "milestones" => $milestones,
-        "notifications" => $notifications,
-        "progressData" => $progressData,
-        "internships" => $internships
-    ];
-
-    // Discard any residual buffer anomalies, serialize the payload, and return with a 200 OK header
     http_response_code(200);
-    echo json_encode($outputPayload, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-
-} catch (Exception $e) {
-    // Catch database connection failures or internal exceptions gracefully
-    http_response_code(500);
     echo json_encode([
-        "success" => false,
-        "message" => "Internal Pipeline Execution Fault occurred inside data service mapping.",
-        "error" => $e->getMessage()
-    ]);
+        "success"       => true,
+        "student"       => $student,
+        "thesis"        => $thesis,
+        "notifications" => $notifications,
+        "progress"      => $progress,
+        "skills"        => $skills,
+        "supervisors"   => $supervisors,
+        "internships"   => $internships,
+        "courses"       => $courses,
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => $e->getMessage()]);
 }
 ?>

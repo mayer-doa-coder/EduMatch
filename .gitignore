@@ -1,0 +1,51 @@
+# ── Node / Frontend ──────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.turbo/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+
+# ── Environment / Secrets ────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# ── PHP / Server ─────────────────────────────────────────────
+*.log
+error_log
+php_error.log
+access_log
+/logs/
+
+# ── Database dumps (never commit real data) ──────────────────
+*.sql.bak
+*.dump
+database/backups/
+
+# ── OS artifacts ─────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ── IDE / Editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# ── Misc ─────────────────────────────────────────────────────
+*.tmp
+*.temp
+.cache/
