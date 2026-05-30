@@ -35,3 +35,82 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-in-up { animation: fadeInUp 0.6s ease both; }
+
+/* ─── Dynamic grid landing page ─────────────────────────────────────────── */
+
+/*
+  Full-page light grid — two scale layers:
+    Major: 60 × 60 px  (primary structural lines)
+    Minor: 15 × 15 px  (finer sub-grid)
+  Both use the app's primary teal at low opacity so the grid
+  is clearly visible but never competes with content.
+*/
+.page-grid-bg {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(rgba(26, 95, 122, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 95, 122, 0.09) 1px, transparent 1px),
+    linear-gradient(rgba(26, 95, 122, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 95, 122, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px, 60px 60px, 15px 15px, 15px 15px;
+}
+
+/*
+  Fixed mouse spotlight — rendered by a React <div> that sits under all
+  content. Updated via CSS custom properties --sx / --sy with no React
+  state, so zero re-renders on every mousemove.
+*/
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    700px circle at var(--sx, 50vw) var(--sy, 40vh),
+    rgba(87, 197, 182, 0.08) 0%,
+    transparent 65%
+  );
+}
+
+/* Thin top-border that reuses the grid line colour — section divider */
+.section-divider {
+  border-top: 1px solid rgba(26, 95, 122, 0.09);
+}
+
+/* ─── Keyframes ─────────────────────────────────────────────────────────── */
+
+/* Intersection node pulse — visible on light background */
+@keyframes grid-node-pulse {
+  0%, 100% {
+    opacity: 0.18;
+    transform: scale(1);
+    box-shadow: 0 0 3px rgba(87, 197, 182, 0.35);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(2.1);
+    box-shadow: 0 0 10px rgba(87, 197, 182, 0.7);
+  }
+}
+
+/* Hero content staggered enter — translate only, no opacity jump */
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Scroll-triggered section enter (used via IntersectionObserver or CSS) */
+@keyframes section-rise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* Staggered hero text helpers — enter once, stay static */
+.hr1 { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.05s; }
+.hr2 { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.17s; }
+.hr3 { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.30s; }
+.hr4 { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.44s; }
+.hr5 { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.58s; }
+
+/* Hero right-side card — enter only, no continuous float */
+.hr-card { animation: hero-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.22s; }

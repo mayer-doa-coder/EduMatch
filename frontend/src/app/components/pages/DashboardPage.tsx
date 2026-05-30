@@ -1,308 +1,156 @@
-import { useState, useEffect } from "react";
-import { Role } from "../edu-data";
-import { DashboardShell } from "../shared/DashboardShell";
+/**
+ * DashboardPage — the portal shell that selects the correct page component
+ * based on the URL segment `/portal/:section` and the authenticated role.
+ *
+ * Auth and layout are handled upstream:
+ *   AuthGuard  → blocks unauthenticated access, redirects to /login
+ *   PortalProvider → provides usePortal() (user, role, logout, goTo)
+ *   DashboardShell → renders sidebar + header + main wrapper
+ *
+ * This component's sole job is ROUTING:
+ *   "Which content component should appear for this role at this section?"
+ */
+
+import { useParams, Navigate } from "react-router";
 import { toast } from "sonner";
+import { usePortal } from "../../context/PortalContext";
+import { DashboardShell } from "../shared/DashboardShell";
 
-// Student Views
-import { StudentOverview } from "./student/Overview";
-import { StudentProfile } from "./student/Profile";
-import { SupervisorMatch } from "./student/SupervisorMatch";
-import { SkillGap } from "./student/SkillGap";
-import { ThesisSubmission } from "./student/ThesisSubmission";
-import { ThesisHealth } from "./student/ThesisHealth";
-import { Internships } from "./student/Internships";
+// ── Student views ──────────────────────────────────────────────────────────────
+import { StudentOverview }    from "./student/Overview";
+import { StudentProfile }     from "./student/Profile";
+import { SupervisorMatch }    from "./student/SupervisorMatch";
+import { SkillGap }           from "./student/SkillGap";
+import { ThesisSubmission }   from "./student/ThesisSubmission";
+import { ThesisHealth }       from "./student/ThesisHealth";
+import { Internships }        from "./student/Internships";
 import { InterviewScheduler } from "./student/InterviewScheduler";
-import { QRCredential } from "./student/QRCredential";
+import { QRCredential }       from "./student/QRCredential";
 
-// Supervisor/Faculty Views
+// ── Supervisor views ───────────────────────────────────────────────────────────
 import { SupervisorOverview } from "./supervisor/Overview";
-import { BlindReview } from "./supervisor/BlindReview";
-import { CapacitySettings } from "./supervisor/Capacity";
-import { FeedbackPage } from "./supervisor/Feedback";
+import { BlindReview }        from "./supervisor/BlindReview";
+import { CapacitySettings }   from "./supervisor/Capacity";
+import { FeedbackPage }       from "./supervisor/Feedback";
 
-// Admin Views
-import { AdminOverview } from "./admin/Overview";
-import { UserManagement } from "./admin/UserManagement";
+// ── Admin views ────────────────────────────────────────────────────────────────
+import { AdminOverview }   from "./admin/Overview";
+import { UserManagement }  from "./admin/UserManagement";
 import { InterUniversity } from "./admin/InterUniversity";
-import { ReportsView } from "./admin/Reports";
-import { SystemSettings } from "./admin/SystemSettings";
+import { ReportsView }     from "./admin/Reports";
+import { SystemSettings }  from "./admin/SystemSettings";
 
-// Company Views
-import { CompanyOverview } from "./company/Overview";
-import { JobPostingForm } from "./company/JobPostingForm";
+// ── Company views ──────────────────────────────────────────────────────────────
+import { CompanyOverview }   from "./company/Overview";
+import { JobPostingForm }    from "./company/JobPostingForm";
 import { CompanyApplicants } from "./company/Applicants";
 
-// Alumni Views
-import { AlumniOverview } from "./alumni/Overview";
-import { MentorshipPage } from "./alumni/Mentorship";
-import { MessagesPage } from "./alumni/Messages";
+// ── Alumni views ───────────────────────────────────────────────────────────────
+import { AlumniOverview }  from "./alumni/Overview";
+import { MentorshipPage }  from "./alumni/Mentorship";
+import { MessagesPage }    from "./alumni/Messages";
 
-// Shared Views
+// ── Shared views ───────────────────────────────────────────────────────────────
 import { NotificationsView } from "./shared/Notifications";
-import { SettingsView } from "./shared/Settings";
-import { HelpView } from "./shared/Help";
+import { SettingsView }      from "./shared/Settings";
+import { HelpView }          from "./shared/Help";
 
-type Props = {
-  role: Role;
-  onLogout: () => void;
-  onSwitchRole: (r: Role) => void;
+import type { Role } from "../edu-data";
+
+// ── RBAC matrix ───────────────────────────────────────────────────────────────
+
+const ROLE_SECTIONS: Record<Role, string[]> = {
+  student:    ["overview","profile","supervisors","skillgap","thesis","health","internships","interviews","qr"],
+  supervisor: ["overview","applicants","capacity","feedback"],
+  admin:      ["overview","users","universities","reports","settings"],
+  company:    ["overview","post","applicants"],
+  alumni:     ["overview","mentorship","messages"],
 };
 
-interface AuthUser {
-  user_id: number;
-  profile_id: number | null;
-  name: string;
-  email: string;
-  role: string;
+const SHARED_SECTIONS = new Set(["notifications","settings-shared","help"]);
+
+// ── Section renderer ───────────────────────────────────────────────────────────
+
+function renderSection(section: string, role: Role, userId: number, profileId: number | null) {
+  // Shared sections available to every role
+  if (section === "notifications")   return <NotificationsView userId={userId} />;
+  if (section === "settings-shared") return <SettingsView userId={userId} />;
+  if (section === "help")            return <HelpView />;
+
+  // Student
+  if (role === "student") {
+    if (section === "overview")   return <StudentOverview   userId={userId} profileId={profileId} />;
+    if (section === "profile")    return <StudentProfile    userId={userId} profileId={profileId} />;
+    if (section === "supervisors") return <SupervisorMatch  userId={userId} profileId={profileId} />;
+    if (section === "skillgap")   return <SkillGap          userId={userId} />;
+    if (section === "thesis")     return <ThesisSubmission  profileId={profileId} />;
+    if (section === "health")     return <ThesisHealth      profileId={profileId} />;
+    if (section === "internships") return <Internships      userId={userId} />;
+    if (section === "interviews") return <InterviewScheduler userId={userId} />;
+    if (section === "qr")         return <QRCredential      profileId={profileId} />;
+  }
+
+  // Supervisor
+  if (role === "supervisor") {
+    if (section === "overview")   return <SupervisorOverview userId={userId} profileId={profileId} />;
+    if (section === "applicants") return <BlindReview        profileId={profileId} />;
+    if (section === "capacity")   return <CapacitySettings   profileId={profileId} />;
+    if (section === "feedback")   return <FeedbackPage       profileId={profileId} />;
+  }
+
+  // Admin
+  if (role === "admin") {
+    if (section === "overview")     return <AdminOverview userId={userId} />;
+    if (section === "users")        return <UserManagement />;
+    if (section === "universities") return <InterUniversity />;
+    if (section === "reports")      return <ReportsView />;
+    if (section === "settings")     return <SystemSettings />;
+  }
+
+  // Company
+  if (role === "company") {
+    if (section === "overview")   return <CompanyOverview   userId={userId} />;
+    if (section === "post")       return <JobPostingForm    userId={userId} />;
+    if (section === "applicants") return <CompanyApplicants userId={userId} />;
+  }
+
+  // Alumni
+  if (role === "alumni") {
+    if (section === "overview")   return <AlumniOverview   userId={userId} profileId={profileId} />;
+    if (section === "mentorship") return <MentorshipPage   profileId={profileId} />;
+    if (section === "messages")   return <MessagesPage     userId={userId} />;
+  }
+
+  return null;
 }
 
-/* ==========================================================================
-   ROLE-BASED ACCESS CONTROL (RBAC) AUTHORIZATION MATRIX
-   ========================================================================== */
-const VALID_ROLE_ROUTES: Record<Role, string[]> = {
-  admin: ["overview", "users", "universities", "reports", "settings"],
-  student: [
-    "overview",
-    "profile",
-    "supervisors",
-    "skillgap",
-    "thesis",
-    "health",
-    "internships",
-    "interviews",
-    "qr",
-  ],
-  supervisor: ["overview", "applicants", "capacity", "feedback"],
-  company: ["overview", "post", "applicants"],
-  alumni: ["overview", "mentorship", "messages"],
-};
+// ── Component ──────────────────────────────────────────────────────────────────
 
-const SHARED_ROUTES = ["notifications", "settings-shared", "help"];
+export function DashboardPage() {
+  const { section = "overview" } = useParams<{ section: string }>();
+  const { user, role }           = usePortal();
 
-export function DashboardPage({ role, onLogout, onSwitchRole }: Props) {
-  const [active, setActive] = useState("overview");
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // This should never be null here (AuthGuard runs upstream), but guard anyway.
+  if (!user) return <Navigate to="/login" replace />;
 
-  useEffect(() => {
-    // Read from localStorage first; fall back to sessionStorage (set when "Remember me" is off)
-    const storedUser =
-      localStorage.getItem("auth_user") ?? sessionStorage.getItem("auth_user");
+  const userId    = user.user_id;
+  const profileId = user.profile_id;
 
-    if (!storedUser) {
-      toast.error("Session expired. Please log in again.");
-      localStorage.removeItem("auth_user");
-      sessionStorage.removeItem("auth_user");
-      onLogout();
-      return;
-    }
+  // RBAC: block sections that don't belong to this role
+  const isShared     = SHARED_SECTIONS.has(section);
+  const isValidForRole = ROLE_SECTIONS[role]?.includes(section);
 
-    try {
-      const parsedUser: AuthUser = JSON.parse(storedUser);
-
-      /* ==========================================================================
-         CRITICAL AUTHORIZATION LAYER: SECURITY PROFILE MISMATCH GUARD
-         ========================================================================== */
-      // Admins bypass standard contextual switches for cross-system telemetry review
-      if (parsedUser.role !== "admin" && parsedUser.role !== role) {
-        console.error(
-          `Unauthorized Route Mutation Attempted: Target [${role}] does not match Auth token [${parsedUser.role}]`,
-        );
-        toast.error("Access Denied: Security signature verification failure.");
-
-        // Force state back to the token's legitimate primary view
-        if (Object.keys(VALID_ROLE_ROUTES).includes(parsedUser.role)) {
-          onSwitchRole(parsedUser.role as Role);
-          setActive("overview");
-        } else {
-          onLogout(); // Absolute terminal fallback
-        }
-        return;
-      }
-
-      setCurrentUser(parsedUser);
-    } catch (err) {
-      console.error("Session parse error:", err);
-      toast.error("Session corrupted. Please log in again.");
-      localStorage.removeItem("auth_user");
-      sessionStorage.removeItem("auth_user");
-      onLogout();
-    } finally {
-      setIsLoading(false);
-    }
-  }, [role, onLogout, onSwitchRole]);
-
-  /* ==========================================================================
-     ACTIVE ROUTE INTERACTION INTERCEPTOR
-     ========================================================================== */
-  const handleViewChange = (targetView: string) => {
-    const isShared = SHARED_ROUTES.includes(targetView);
-    const isValidForRole = VALID_ROLE_ROUTES[role]?.includes(targetView);
-
-    if (!isShared && !isValidForRole) {
-      console.warn(
-        `Blocked traversal attempt to unassigned navigation block: [${targetView}] for Role: [${role}]`,
-      );
-      toast.error(
-        "Privilege validation failure: Access to requested sub-module is restricted.",
-      );
-      setActive("overview"); // Force state rollback to a dependable baseline
-      return;
-    }
-
-    setActive(targetView);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm font-medium text-slate-500">
-            Verifying cryptographic credentials and establishing secure
-            pipelines...
-          </p>
-        </div>
-      </div>
-    );
+  if (!isShared && !isValidForRole) {
+    // Silently redirect back to overview instead of crashing
+    toast.error("That section isn't available for your account.");
+    return <Navigate to="/portal/overview" replace />;
   }
 
-  // Final validation guard to catch structural inconsistencies
-  if (!currentUser) return null;
-
-  function handleLogout() {
-    localStorage.removeItem("auth_user");
-    sessionStorage.removeItem("auth_user");
-    onLogout();
-  }
+  const content = renderSection(section, role, userId, profileId);
 
   return (
-    <DashboardShell
-      role={role}
-      active={active}
-      onActiveChange={handleViewChange}
-      onLogout={handleLogout}
-      onSwitchRole={(targetRole) => {
-        // Enforce authorization constraint before allowing down-stream state updates
-        if (currentUser.role !== "admin" && currentUser.role !== targetRole) {
-          toast.error(
-            "Operation Denied: Token lacks permission to assume specified profile.",
-          );
-          return;
-        }
-        setActive("overview");
-        onSwitchRole(targetRole);
-      }}
-    >
-      {/* ==========================================================================
-         STUDENT CONTEXT TREE
-         ========================================================================== */}
-      {role === "student" && active === "overview" && (
-        <StudentOverview
-          userId={currentUser.user_id}
-          profileId={currentUser.profile_id}
-        />
-      )}
-      {role === "student" && active === "profile" && (
-        <StudentProfile
-          userId={currentUser.user_id}
-          profileId={currentUser.profile_id}
-        />
-      )}
-      {role === "student" && active === "supervisors" && (
-        <SupervisorMatch
-          userId={currentUser.user_id}
-          profileId={currentUser.profile_id}
-        />
-      )}
-      {role === "student" && active === "skillgap" && (
-        <SkillGap userId={currentUser.user_id} />
-      )}
-      {role === "student" && active === "thesis" && (
-        <ThesisSubmission profileId={currentUser.profile_id} />
-      )}
-      {role === "student" && active === "health" && (
-        <ThesisHealth profileId={currentUser.profile_id} />
-      )}
-      {role === "student" && active === "internships" && (
-        <Internships userId={currentUser.user_id} />
-      )}
-      {role === "student" && active === "interviews" && (
-        <InterviewScheduler userId={currentUser.user_id} />
-      )}
-      {role === "student" && active === "qr" && (
-        <QRCredential profileId={currentUser.profile_id} />
-      )}
-
-      {/* ==========================================================================
-         SUPERVISOR / FACULTY CONTEXT TREE
-         ========================================================================== */}
-      {role === "supervisor" && active === "overview" && (
-        <SupervisorOverview
-          userId={currentUser.user_id}
-          profileId={currentUser.profile_id}
-        />
-      )}
-      {role === "supervisor" && active === "applicants" && (
-        <BlindReview profileId={currentUser.profile_id} />
-      )}
-      {role === "supervisor" && active === "capacity" && (
-        <CapacitySettings profileId={currentUser.profile_id} />
-      )}
-      {role === "supervisor" && active === "feedback" && (
-        <FeedbackPage profileId={currentUser.profile_id} />
-      )}
-
-      {/* ==========================================================================
-         ADMINISTRATIVE MANAGEMENT CONTEXT TREE
-         ========================================================================== */}
-      {role === "admin" && active === "overview" && (
-        <AdminOverview userId={currentUser.user_id} />
-      )}
-      {role === "admin" && active === "users" && <UserManagement />}
-      {role === "admin" && active === "universities" && <InterUniversity />}
-      {role === "admin" && active === "reports" && <ReportsView />}
-      {role === "admin" && active === "settings" && <SystemSettings />}
-
-      {/* ==========================================================================
-         CORPORATE PARTNER CONTEXT TREE
-         ========================================================================== */}
-      {role === "company" && active === "overview" && (
-        <CompanyOverview userId={currentUser.user_id} />
-      )}
-      {role === "company" && active === "post" && (
-        <JobPostingForm userId={currentUser.user_id} />
-      )}
-      {role === "company" && active === "applicants" && (
-        <CompanyApplicants userId={currentUser.user_id} />
-      )}
-
-      {/* ==========================================================================
-         ALUMNI NETWORK CONTEXT TREE
-         ========================================================================== */}
-      {role === "alumni" && active === "overview" && (
-        <AlumniOverview
-          userId={currentUser.user_id}
-          profileId={currentUser.profile_id}
-        />
-      )}
-      {role === "alumni" && active === "mentorship" && (
-        <MentorshipPage profileId={currentUser.profile_id} />
-      )}
-      {role === "alumni" && active === "messages" && (
-        <MessagesPage userId={currentUser.user_id} />
-      )}
-
-      {/* ==========================================================================
-         SHARED PLATFORM SYSTEM CORE UTILITIES
-         ========================================================================== */}
-      {active === "notifications" && (
-        <NotificationsView userId={currentUser.user_id} />
-      )}
-      {active === "settings-shared" && (
-        <SettingsView userId={currentUser.user_id} />
-      )}
-      {active === "help" && <HelpView />}
+    <DashboardShell>
+      {content ?? <Navigate to="/portal/overview" replace />}
     </DashboardShell>
   );
 }
