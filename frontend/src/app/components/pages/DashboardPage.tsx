@@ -85,13 +85,14 @@ export function DashboardPage({ role, onLogout, onSwitchRole }: Props) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Extract cryptographic token / authorization payload from local infrastructure
-    const storedUser = localStorage.getItem("auth_user");
+    // Read from localStorage first; fall back to sessionStorage (set when "Remember me" is off)
+    const storedUser =
+      localStorage.getItem("auth_user") ?? sessionStorage.getItem("auth_user");
 
     if (!storedUser) {
-      toast.error(
-        "Active session context missing. Redirecting to terminal gate...",
-      );
+      toast.error("Session expired. Please log in again.");
+      localStorage.removeItem("auth_user");
+      sessionStorage.removeItem("auth_user");
       onLogout();
       return;
     }
@@ -121,11 +122,10 @@ export function DashboardPage({ role, onLogout, onSwitchRole }: Props) {
 
       setCurrentUser(parsedUser);
     } catch (err) {
-      console.error(
-        "Critical Exception caught during authorization handshake parsing:",
-        err,
-      );
-      toast.error("Session corrupted. Terminating session channel...");
+      console.error("Session parse error:", err);
+      toast.error("Session corrupted. Please log in again.");
+      localStorage.removeItem("auth_user");
+      sessionStorage.removeItem("auth_user");
       onLogout();
     } finally {
       setIsLoading(false);
@@ -170,12 +170,18 @@ export function DashboardPage({ role, onLogout, onSwitchRole }: Props) {
   // Final validation guard to catch structural inconsistencies
   if (!currentUser) return null;
 
+  function handleLogout() {
+    localStorage.removeItem("auth_user");
+    sessionStorage.removeItem("auth_user");
+    onLogout();
+  }
+
   return (
     <DashboardShell
       role={role}
       active={active}
       onActiveChange={handleViewChange}
-      onLogout={onLogout}
+      onLogout={handleLogout}
       onSwitchRole={(targetRole) => {
         // Enforce authorization constraint before allowing down-stream state updates
         if (currentUser.role !== "admin" && currentUser.role !== targetRole) {

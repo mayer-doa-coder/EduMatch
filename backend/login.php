@@ -66,16 +66,19 @@ try {
             $profile_id = $subRow ? (int)$subRow['alumni_id'] : null;
         }
 
+        // Translate internal 'faculty' DB value back to the frontend-facing 'supervisor' label
+        $response_role = ($role === 'faculty') ? 'supervisor' : $role;
+
         http_response_code(200);
         echo json_encode([
             "success" => true,
-            "message" => "Welcome back to your ecosystem dashboard workspace!",
+            "message" => "Welcome back!",
             "user" => [
                 "user_id"    => $userId,
                 "profile_id" => $profile_id,
                 "name"       => $userRecord['name'],
                 "email"      => $userRecord['email'],
-                "role"       => $role
+                "role"       => $response_role,
             ]
         ]);
         

@@ -11,105 +11,137 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/lib/db.php';
 
-$input_data = json_decode(file_get_contents("php://input"), true);
+$input = json_decode(file_get_contents("php://input"), true);
 
+// Base required fields for every role
 if (
-    $_SERVER['REQUEST_METHOD'] !== 'POST' || 
-    empty($input_data['name']) || 
-    empty($input_data['email']) || 
-    empty($input_data['password']) || 
-    empty($input_data['role']) ||
-    empty($input_data['university']) ||
-    empty($input_data['department'])
+    $_SERVER['REQUEST_METHOD'] !== 'POST' ||
+    empty($input['name'])     ||
+    empty($input['email'])    ||
+    empty($input['password']) ||
+    empty($input['role'])
 ) {
     http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Required dynamic registration input parameters are missing."
-    ]);
+    echo json_encode(["success" => false, "message" => "Name, email, password, and role are required."]);
     exit();
 }
 
-$name = trim($input_data['name']);
-$email = trim($input_data['email']);
-$password = $input_data['password']; 
-$role = strtolower(trim($input_data['role']));
-$university = trim($input_data['university']);
-$department = trim($input_data['department']);
+$name       = trim($input['name']);
+$email      = trim($input['email']);
+$password   = $input['password'];
+$role       = strtolower(trim($input['role']));
+$university = trim($input['university'] ?? '');
+$department = trim($input['department'] ?? '');
 
-if ($role === 'supervisor') {
-    $role = 'faculty';
+// Map frontend role label → DB enum value
+$db_role = ($role === 'supervisor') ? 'faculty' : $role;
+
+// Admins cannot self-register
+if ($db_role === 'admin') {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Admin accounts cannot be self-registered."]);
+    exit();
+}
+
+// Validate DB enum
+$allowed = ['student', 'faculty', 'company', 'alumni'];
+if (!in_array($db_role, $allowed, true)) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "Invalid role specified."]);
+    exit();
+}
+
+// Student and supervisor require university + department
+if (in_array($db_role, ['student', 'faculty'], true) && (empty($university) || empty($department))) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "University and department are required for this role."]);
+    exit();
 }
 
 try {
     $pdo = getDB();
 
-    // 1. Cross-check availability in central Users relation
-    $checkUser = $pdo->prepare("SELECT user_id FROM Users WHERE email = :email LIMIT 1");
-    $checkUser->execute([':email' => $email]);
-
-    if ($checkUser->fetch()) {
+    // 1. Check email uniqueness
+    $checkStmt = $pdo->prepare("SELECT user_id FROM Users WHERE email = :email LIMIT 1");
+    $checkStmt->execute([':email' => $email]);
+    if ($checkStmt->fetch()) {
         http_response_code(409);
-        echo json_encode([
-            "success" => false,
-            "message" => "This university email address is already registered."
-        ]);
+        echo json_encode(["success" => false, "message" => "This email address is already registered."]);
         exit();
     }
 
-    // 2. Resolve relational foreign key mappings (maps to your column 'uni_name')
-    $univStmt = $pdo->prepare("SELECT university_id FROM Universities WHERE uni_name = :uName LIMIT 1");
-    $univStmt->execute([':uName' => $university]);
-    $univRow = $univStmt->fetch();
-    
-    $university_id = $univRow ? (int)$univRow['university_id'] : null; 
+    // 2. Resolve university_id (optional for company role)
+    $university_id = null;
+    if ($university !== '') {
+        $univStmt = $pdo->prepare("SELECT university_id FROM Universities WHERE uni_name = :uName LIMIT 1");
+        $univStmt->execute([':uName' => $university]);
+        $univRow      = $univStmt->fetch();
+        $university_id = $univRow ? (int)$univRow['university_id'] : null;
+    }
 
-    // Generate secure cryptographically hashed string values
     $password_hash = password_hash($password, PASSWORD_BCRYPT);
 
-    // 3. Begin Transaction
+    // 3. Transaction: insert Users row + role-specific child row
     $pdo->beginTransaction();
 
-    // Insert to core parent table
-    $userSql = "INSERT INTO Users (name, email, password_hash, role, university_id) 
-                VALUES (:name, :email, :pass, :role, :univ_id)";
-    $userStmt = $pdo->prepare($userSql);
+    $userStmt = $pdo->prepare(
+        "INSERT INTO Users (name, email, password_hash, role, university_id)
+         VALUES (:name, :email, :pass, :role, :univ_id)"
+    );
     $userStmt->execute([
         ':name'    => $name,
         ':email'   => $email,
         ':pass'    => $password_hash,
-        ':role'    => $role,
-        ':univ_id' => $university_id
+        ':role'    => $db_role,
+        ':univ_id' => $university_id,
     ]);
+    $new_user_id = (int)$pdo->lastInsertId();
+    $profile_id  = null;
 
-    $newUserId = $pdo->lastInsertId();
+    if ($db_role === 'student') {
+        $stmt = $pdo->prepare(
+            "INSERT INTO Students (user_id, cgpa, research_interest, technical_skills, assigned_supervisor_id)
+             VALUES (:uid, NULL, NULL, NULL, NULL)"
+        );
+        $stmt->execute([':uid' => $new_user_id]);
+        $profile_id = (int)$pdo->lastInsertId();
 
-    // Map profiles into child extension tables
-    if ($role === 'student') {
-        $studentSql = "INSERT INTO Students (user_id, cgpa, research_interest, technical_skills, assigned_supervisor_id) 
-                       VALUES (:user_id, NULL, NULL, NULL, NULL)";
-        $studentStmt = $pdo->prepare($studentSql);
-        $studentStmt->execute([':user_id' => $newUserId]);
-        
-    } else if ($role === 'faculty') {
-        $facultySql = "INSERT INTO Faculty (user_id, designation, quota, current_student_count, research_focus) 
-                       VALUES (:user_id, :dept_fallback, 5, 0, NULL)";
-        $facultyStmt = $pdo->prepare($facultySql);
-        $facultyStmt->execute([
-            ':user_id'       => $newUserId,
-            ':dept_fallback' => $department . " Department"
-        ]);
-    } else {
-        $pdo->rollBack();
-        throw new Exception("Encountered unsupported registration system context path role.");
+    } elseif ($db_role === 'faculty') {
+        $stmt = $pdo->prepare(
+            "INSERT INTO Faculty (user_id, designation, quota, current_student_count, research_focus)
+             VALUES (:uid, :desig, 5, 0, NULL)"
+        );
+        $stmt->execute([':uid' => $new_user_id, ':desig' => $department . " Department"]);
+        $profile_id = (int)$pdo->lastInsertId();
+
+    } elseif ($db_role === 'alumni') {
+        // Alumni_Mentors entry created with empty expertise/company — user fills profile later
+        $stmt = $pdo->prepare(
+            "INSERT INTO Alumni_Mentors (user_id, expertise, company) VALUES (:uid, NULL, NULL)"
+        );
+        $stmt->execute([':uid' => $new_user_id]);
+        $profile_id = (int)$pdo->lastInsertId();
+
     }
+    // company: no child table — profile_id stays null
 
     $pdo->commit();
+
+    // Translate faculty back to supervisor for the frontend
+    $response_role = ($db_role === 'faculty') ? 'supervisor' : $db_role;
 
     http_response_code(201);
     echo json_encode([
         "success" => true,
-        "message" => "Registration successful! Welcome to the ecosystem."
+        "message" => "Registration successful! Welcome to EduMatch.",
+        // Return the same user shape as login.php so the frontend can store the session immediately
+        "user" => [
+            "user_id"    => $new_user_id,
+            "profile_id" => $profile_id,
+            "name"       => $name,
+            "email"      => $email,
+            "role"       => $response_role,
+        ],
     ]);
 
 } catch (Exception $e) {
@@ -119,8 +151,8 @@ try {
     http_response_code(500);
     echo json_encode([
         "success" => false,
-        "message" => "Ecosystem dynamic registration instance encountered a system crash.",
-        "error" => $e->getMessage()
+        "message" => "Registration failed. Please try again.",
+        "error"   => $e->getMessage(),
     ]);
 }
 ?>
