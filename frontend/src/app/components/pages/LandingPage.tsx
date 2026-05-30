@@ -84,7 +84,7 @@ export function LandingPage({ onGetStarted, onLogin }: PageProps) {
 
   useEffect(() => {
     // Adjust endpoint path as necessary depending on your environment routing
-    fetch("http://localhost/dbms/backend/landing.php")
+    fetch("http://localhost/EduMatch/backend/landing.php")
       .then((res) => {
         if (!res.ok) throw new Error("Network response was not ok");
         return res.json();

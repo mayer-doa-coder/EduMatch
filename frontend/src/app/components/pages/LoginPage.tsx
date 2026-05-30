@@ -54,7 +54,7 @@ export function LoginPage({ onSwitch, onAuthed, onBack }: Props) {
 
     try {
       // Connect to your dynamic login.php endpoint
-      const response = await fetch("http://localhost/dbms/backend/login.php", {
+      const response = await fetch("http://localhost/EduMatch/backend/login.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

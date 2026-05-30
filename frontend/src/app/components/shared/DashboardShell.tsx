@@ -34,7 +34,7 @@ import {
   Award,
   HelpCircle,
 } from "lucide-react";
-import { Role, currentStudent, notifications } from "../edu-data";
+import { Role } from "../edu-data";
 
 export type NavItem = { id: string; label: string; icon: any };
 
@@ -100,7 +100,12 @@ export function DashboardShell({
 }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const nav = useMemo(() => [...navByRole[role], ...sharedNav], [role]);
-  const unread = notifications.filter((n) => n.unread).length;
+
+  const authUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("auth_user") || "{}"); } catch { return {}; }
+  }, []);
+  const displayName: string = authUser.name ?? "User";
+  const initials = displayName.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div
@@ -208,24 +213,16 @@ export function DashboardShell({
               onClick={() => onActiveChange("notifications")}
             >
               <Bell size={20} style={{ color: "var(--edu-primary)" }} />
-              {unread > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center"
-                  style={{ background: "var(--edu-accent)" }}
-                >
-                  {unread}
-                </span>
-              )}
             </button>
             <div className="flex items-center gap-2">
               <Avatar>
                 <AvatarFallback className="edu-gradient text-white">
-                  FL
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
                 <div className="text-sm" style={{ fontWeight: 600 }}>
-                  {currentStudent.name}
+                  {displayName}
                 </div>
                 <div
                   className="text-xs capitalize"

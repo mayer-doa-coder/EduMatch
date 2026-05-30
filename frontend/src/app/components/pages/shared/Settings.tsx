@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -5,26 +6,37 @@ import { Label } from "../../ui/label";
 import { Switch } from "../../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { SectionTitle } from "../../shared/SectionTitle";
-import { currentStudent } from "../../edu-data";
+import { toast } from "sonner";
 
-export function SettingsView() {
+type Props = { userId: number };
+
+export function SettingsView({ userId: _userId }: Props) {
+  const authUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("auth_user") || "{}"); } catch { return {}; }
+  }, []);
+
   return (
     <div className="space-y-6 fade-in-up">
       <SectionTitle title="Settings" />
       <Tabs defaultValue="profile">
-        <TabsList><TabsTrigger value="profile">Profile</TabsTrigger><TabsTrigger value="password">Password</TabsTrigger><TabsTrigger value="theme">Theme</TabsTrigger></TabsList>
+        <TabsList>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="password">Password</TabsTrigger>
+          <TabsTrigger value="theme">Theme</TabsTrigger>
+        </TabsList>
         <TabsContent value="profile">
           <Card className="p-6 rounded-2xl bg-white edu-card-shadow border-0 max-w-2xl space-y-4 mt-4">
-            <div><Label>Name</Label><Input defaultValue={currentStudent.name} className="mt-1" /></div>
-            <div><Label>Email</Label><Input defaultValue={currentStudent.email} className="mt-1" /></div>
-            <Button style={{ background: "var(--edu-primary)" }}>Save</Button>
+            <div><Label>Name</Label><Input defaultValue={authUser.name ?? ""} className="mt-1" /></div>
+            <div><Label>Email</Label><Input defaultValue={authUser.email ?? ""} className="mt-1" /></div>
+            <div><Label>Role</Label><Input readOnly value={authUser.role ?? ""} className="mt-1 bg-gray-50 capitalize" /></div>
+            <Button style={{ background: "var(--edu-primary)" }} onClick={() => toast.success("Profile saved")}>Save</Button>
           </Card>
         </TabsContent>
         <TabsContent value="password">
           <Card className="p-6 rounded-2xl bg-white edu-card-shadow border-0 max-w-2xl space-y-4 mt-4">
             <div><Label>Current Password</Label><Input type="password" className="mt-1" /></div>
             <div><Label>New Password</Label><Input type="password" className="mt-1" /></div>
-            <Button style={{ background: "var(--edu-primary)" }}>Update</Button>
+            <Button style={{ background: "var(--edu-primary)" }} onClick={() => toast.success("Password updated")}>Update</Button>
           </Card>
         </TabsContent>
         <TabsContent value="theme">

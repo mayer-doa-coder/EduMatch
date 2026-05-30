@@ -54,7 +54,7 @@ export function RegisterPage({ onSwitch, onAuthed, onBack }: Props) {
 
     try {
       const response = await fetch(
-        "http://localhost/dbms/backend/register.php",
+        "http://localhost/EduMatch/backend/register.php",
         {
           method: "POST",
           headers: {

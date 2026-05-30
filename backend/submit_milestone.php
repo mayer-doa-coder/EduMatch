@@ -23,10 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'DBMS_project');
+require_once __DIR__ . '/lib/db.php';
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -50,16 +47,7 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $due_date)) {
 $plagiarism_score = max(0.0, min(100.0, $plagiarism_score));
 
 try {
-    $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-        DB_USER,
-        DB_PASS,
-        [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-        ]
-    );
+    $pdo = getDB();
 
     // ── Step 1: EXISTS — reject if this milestone is already submitted ───────
     // EXISTS(subquery) returns 1 (true) or 0 (false).

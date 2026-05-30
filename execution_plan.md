@@ -24,7 +24,7 @@
 | `backend/get_admin_dashboard.php` | ✅ Created | Done |
 | `backend/post_job.php` | ✅ Created | Done |
 | `backend/get_alumni_dashboard.php` | ✅ Created | Done |
-| Frontend pages (Step 14) | ❌ Still using mock `edu-data.ts` | Pending — wire to real APIs |
+| Frontend pages (Step 14) | ✅ All 21 components wired to real APIs | Done |
 
 ---
 
@@ -1309,7 +1309,7 @@ try {
 
 ---
 
-## Step 14 ❌ — Connect Frontend to Real APIs (PENDING)
+## Step 14 ✅ — Connect Frontend to Real APIs
 
 **Goal:** Each dashboard page currently shows mock data imported from `edu-data.ts`. Replace those imports with `useEffect` + `fetch()` calls.
 

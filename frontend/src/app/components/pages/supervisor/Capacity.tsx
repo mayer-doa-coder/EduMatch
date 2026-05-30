@@ -7,7 +7,8 @@ import { Switch } from "../../ui/switch";
 import { SectionTitle } from "../../shared/SectionTitle";
 import { toast } from "sonner";
 
-export function CapacitySettings() {
+type Props = { profileId: number | null };
+export function CapacitySettings({ profileId: _profileId }: Props) {
   const [quota, setQuota] = useState([8]);
   const [autoAssign, setAutoAssign] = useState(true);
   return (

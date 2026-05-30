@@ -5,6 +5,7 @@ import { LoginPage } from "./components/pages/LoginPage";
 import { RegisterPage } from "./components/pages/RegisterPage";
 import { DashboardPage } from "./components/pages/DashboardPage";
 import { Role } from "./components/edu-data";
+import { QueryTerminal } from "./components/debug/QueryTerminal";
 import "../styles/index.css";
 
 type View =
@@ -46,6 +47,8 @@ export default function App() {
         />
       )}
       <Toaster position="top-right" richColors />
+      {/* Dev-only SQL terminal — Vite strips this from production builds */}
+      {import.meta.env.DEV && <QueryTerminal />}
     </div>
   );
 }

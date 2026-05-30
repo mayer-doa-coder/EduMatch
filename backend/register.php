@@ -9,10 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'DBMS_project');
+require_once __DIR__ . '/lib/db.php';
 
 $input_data = json_decode(file_get_contents("php://input"), true);
 
@@ -45,11 +42,7 @@ if ($role === 'supervisor') {
 }
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8", DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
-    ]);
+    $pdo = getDB();
 
     // 1. Cross-check availability in central Users relation
     $checkUser = $pdo->prepare("SELECT user_id FROM Users WHERE email = :email LIMIT 1");

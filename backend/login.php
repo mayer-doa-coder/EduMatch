@@ -9,10 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'DBMS_project');
+require_once __DIR__ . '/lib/db.php';
 
 $input_data = json_decode(file_get_contents("php://input"), true);
 
@@ -34,11 +31,7 @@ if ($role === 'supervisor') {
 }
 
 try {
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8", DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
-    ]);
+    $pdo = getDB();
 
     // 1. Authenticate against central core entries
     $query = "SELECT user_id, name, email, password_hash, role FROM Users WHERE email = :email AND role = :role LIMIT 1";
@@ -66,6 +59,11 @@ try {
             $subStmt->execute([':uid' => $userId]);
             $subRow = $subStmt->fetch();
             $profile_id = $subRow ? (int)$subRow['faculty_id'] : null;
+        } else if ($role === 'alumni') {
+            $subStmt = $pdo->prepare("SELECT alumni_id FROM Alumni_Mentors WHERE user_id = :uid LIMIT 1");
+            $subStmt->execute([':uid' => $userId]);
+            $subRow = $subStmt->fetch();
+            $profile_id = $subRow ? (int)$subRow['alumni_id'] : null;
         }
 
         http_response_code(200);

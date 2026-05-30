@@ -5,7 +5,8 @@ import { Textarea } from "../../ui/textarea";
 import { SectionTitle } from "../../shared/SectionTitle";
 import { toast } from "sonner";
 
-export function FeedbackPage() {
+type Props = { profileId: number | null };
+export function FeedbackPage({ profileId: _profileId }: Props) {
   return (
     <div className="space-y-6 fade-in-up">
       <SectionTitle title="Feedback & Comments" />

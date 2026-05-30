@@ -252,7 +252,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     // Fetch aggregated datasets straight out of the single backend endpoint handler
-    fetch("http://localhost/dbms/backend/get_student_dashboard.php")
+    fetch("http://localhost/EduMatch/backend/get_student_dashboard.php")
       .then((res) => {
         if (!res.ok) throw new Error("HTTP Network request fault.");
         return res.json();

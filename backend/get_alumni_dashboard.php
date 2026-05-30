@@ -16,10 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'DBMS_project');
+require_once __DIR__ . '/lib/db.php';
 
 $alumni_id = isset($_GET['alumni_id']) ? (int)$_GET['alumni_id'] : 0;
 if (!$alumni_id) {
@@ -29,16 +26,7 @@ if (!$alumni_id) {
 }
 
 try {
-    $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-        DB_USER,
-        DB_PASS,
-        [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
-        ]
-    );
+    $pdo = getDB();
 
     // ── Query 1: Alumni profile — Multiple JOINs ─────────────────────────────
     // Three tables joined: Alumni_Mentors → Users → Universities.
