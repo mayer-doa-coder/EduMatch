@@ -4,6 +4,8 @@
 class QueryLogger {
     private static string $logFile = __DIR__ . '/../logs/queries.jsonl';
 
+    private const MAX_LINES = 500;
+
     public static function log(string $sql, array $params, float $durationMs): void {
         $dir = dirname(self::$logFile);
         if (!is_dir($dir)) {
@@ -21,6 +23,17 @@ class QueryLogger {
         ], JSON_UNESCAPED_UNICODE);
 
         file_put_contents(self::$logFile, $entry . "\n", FILE_APPEND | LOCK_EX);
+
+        // Rotate: keep only the last MAX_LINES entries.
+        self::rotate();
+    }
+
+    private static function rotate(): void {
+        if (!file_exists(self::$logFile)) return;
+        $lines = file(self::$logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false || count($lines) <= self::MAX_LINES) return;
+        $trimmed = array_slice($lines, -self::MAX_LINES);
+        file_put_contents(self::$logFile, implode("\n", $trimmed) . "\n", LOCK_EX);
     }
 
     // Returns all entries with ts > $since (float unix timestamp).

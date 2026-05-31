@@ -18,10 +18,12 @@ frontend/out/
 
 # ── PHP / Server ─────────────────────────────────────────────
 *.log
+*.jsonl
 error_log
 php_error.log
 access_log
 /logs/
+backend/logs/
 
 # ── Database dumps (never commit real data) ──────────────────
 *.sql.bak

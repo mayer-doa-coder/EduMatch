@@ -134,27 +134,89 @@ try {
     }
     unset($fl);
 
-    // ── Query 5: Blind applicants from same university — SELECT from VIEW ────
-    // Queries v_blind_applicants (students without an assigned supervisor),
-    // filtered to the supervisor's own university via a nested subquery.
-    $q5 = $pdo->prepare("
-        SELECT code, student_id, cgpa, research_interest, technical_skills
-        FROM   v_blind_applicants
-        WHERE  university_id = (
-                   SELECT university_id FROM Users
-                   WHERE  user_id = (
-                              SELECT user_id FROM Faculty
-                              WHERE  faculty_id = :fid
-                          )
-               )
-        ORDER  BY cgpa DESC
-        LIMIT  10
-    ");
-    $q5->execute([':fid' => $faculty_id]);
+    // ── One-time safe migration: SupervisorReviews table ───────────────────
+    // Wrapped in its own try-catch so a DDL failure never breaks the whole
+    // dashboard response. The subsequent query uses a LEFT JOIN instead of
+    // NOT IN so it degrades gracefully even if the table is missing.
+    $reviews_table_ok = false;
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS SupervisorReviews (
+                review_id   INT AUTO_INCREMENT PRIMARY KEY,
+                faculty_id  INT NOT NULL,
+                student_id  INT NOT NULL,
+                decision    ENUM('accepted','rejected','waitlisted') NOT NULL,
+                reviewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_fac_stu (faculty_id, student_id),
+                FOREIGN KEY (faculty_id) REFERENCES Faculty(faculty_id)
+                    ON UPDATE CASCADE ON DELETE CASCADE,
+                FOREIGN KEY (student_id) REFERENCES Students(student_id)
+                    ON UPDATE CASCADE ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+        $reviews_table_ok = true;
+    } catch (PDOException $e2) {
+        // Table may already exist with a slightly different definition,
+        // or we lack DDL privileges — treat as non-fatal.
+        $reviews_table_ok = false;
+    }
+
+    // ── Query 5: Blind applicants — filtered by university AND unreviewed ──
+    // Uses COALESCE so NULL technical_skills / research_interest never
+    // reach the frontend as null — they arrive as empty strings instead.
+    // LEFT JOIN on SupervisorReviews (only applied when the table exists)
+    // excludes applicants this supervisor has already decided on.
+    if ($reviews_table_ok) {
+        $q5 = $pdo->prepare("
+            SELECT v.code,
+                   v.student_id,
+                   COALESCE(v.cgpa, 0.00)                      AS cgpa,
+                   COALESCE(v.research_interest, '')            AS research_interest,
+                   COALESCE(v.technical_skills,  '')            AS technical_skills
+            FROM   v_blind_applicants v
+            LEFT   JOIN SupervisorReviews sr
+                   ON  sr.student_id = v.student_id
+                   AND sr.faculty_id = :fid2
+            WHERE  v.university_id = (
+                       SELECT uu.university_id FROM Users uu
+                       WHERE  uu.user_id = (
+                                  SELECT f2.user_id FROM Faculty f2
+                                  WHERE  f2.faculty_id = :fid
+                              )
+                   )
+              AND  sr.review_id IS NULL
+            ORDER  BY v.cgpa DESC
+            LIMIT  20
+        ");
+        $q5->execute([':fid' => $faculty_id, ':fid2' => $faculty_id]);
+    } else {
+        // Fallback: no review filtering — original behaviour
+        $q5 = $pdo->prepare("
+            SELECT v.code,
+                   v.student_id,
+                   COALESCE(v.cgpa, 0.00)                      AS cgpa,
+                   COALESCE(v.research_interest, '')            AS research_interest,
+                   COALESCE(v.technical_skills,  '')            AS technical_skills
+            FROM   v_blind_applicants v
+            WHERE  v.university_id = (
+                       SELECT uu.university_id FROM Users uu
+                       WHERE  uu.user_id = (
+                                  SELECT f2.user_id FROM Faculty f2
+                                  WHERE  f2.faculty_id = :fid
+                              )
+                   )
+            ORDER  BY v.cgpa DESC
+            LIMIT  20
+        ");
+        $q5->execute([':fid' => $faculty_id]);
+    }
     $blind_applicants = $q5->fetchAll();
     foreach ($blind_applicants as &$ba) {
-        $ba['student_id'] = (int)$ba['student_id'];
-        $ba['cgpa']       = (float)$ba['cgpa'];
+        $ba['student_id']       = (int)$ba['student_id'];
+        $ba['cgpa']             = (float)$ba['cgpa'];
+        // These are already COALESCE-d to '' above, but belt-and-suspenders:
+        $ba['research_interest'] = (string)($ba['research_interest'] ?? '');
+        $ba['technical_skills']  = (string)($ba['technical_skills']  ?? '');
     }
     unset($ba);
 
